@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scheme Analysis — SBI Small Cap Fund</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F3F6F4;
+    --surface:#FFFFFF;
+    --ink:#121A19;
+    --ink-soft:#5B6B67;
+    --ink-faint:#8B9895;
+    --line:#DCE4E1;
+    --line-soft:#E9EFEC;
+    --teal:#1F6F5C;
+    --teal-deep:#123F34;
+    --teal-tint:#E4EEEA;
+    --gold:#A97A28;
+    --gold-tint:#F4E9D3;
+    --brick:#9C4234;
+    --brick-tint:#F5E5E1;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding:28px 20px 60px;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+
+  /* ---------- Header ---------- */
+  .scheme-header{
+    background:var(--teal-deep);
+    color:#EFF4F1;
+    border-radius:14px 14px 0 0;
+    padding:26px 30px 22px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:24px;
+    flex-wrap:wrap;
+  }
+  .scheme-id .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:#9DC4B7;margin:0 0 6px;
+  }
+  .scheme-id h1{
+    font-family:'Fraunces',serif;font-weight:600;font-size:30px;
+    margin:0 0 8px;letter-spacing:.2px;
+  }
+  .scheme-meta{font-size:13px;color:#C6DBD2;display:flex;gap:16px;flex-wrap:wrap;}
+  .scheme-meta span{display:flex;align-items:center;gap:6px;}
+  .dot{width:5px;height:5px;border-radius:50%;background:#5C8C7C;display:inline-block;}
+
+  .quartile-badge{
+    background:rgba(255,255,255,0.07);
+    border:1px solid rgba(255,255,255,0.16);
+    border-radius:12px;padding:14px 20px;text-align:center;min-width:150px;
+  }
+  .quartile-badge .qlabel{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#9DC4B7;margin-bottom:6px;}
+  .quartile-badge .qval{font-family:'Fraunces',serif;font-weight:600;font-size:34px;color:#F4C868;line-height:1;}
+  .quartile-badge .qsub{font-size:12px;color:#C6DBD2;margin-top:4px;}
+
+  /* ---------- Master period bar (DSP-style global control) ---------- */
+  .master-bar-wrap{
+    position:sticky;
+    top:0;
+    z-index:40;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-top:none;
+    border-radius:0 0 14px 14px;
+    box-shadow:0 6px 14px -10px rgba(18,26,25,.25);
+    margin-bottom:22px;
+  }
+  .master-bar{
+    display:flex;
+    align-items:center;
+    gap:2px;
+    padding:0 22px;
+    overflow-x:auto;
+    scrollbar-width:none;
+  }
+  .master-bar::-webkit-scrollbar{display:none;}
+  .master-bar .as-of{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    color:var(--ink-faint);
+    white-space:nowrap;
+    padding-right:14px;
+    border-right:1px solid var(--line-soft);
+    margin-right:10px;
+  }
+  .period-btn{
+    background:none;
+    border:none;
+    border-bottom:2.5px solid transparent;
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:13.5px;
+    font-weight:500;
+    color:var(--ink-faint);
+    padding:14px 13px 11px;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:color .12s ease;
+  }
+  .period-btn:hover{color:var(--ink-soft);}
+  .period-btn.active{color:var(--teal-deep);font-weight:600;border-bottom-color:var(--gold);}
+  .master-note{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;color:var(--ink-faint);
+    padding:9px 22px 12px;
+    border-top:1px solid var(--line-soft);
+  }
+  .master-note b{color:var(--ink-soft);}
+
+  /* ---------- Tabs ---------- */
+  .tabs{
+    display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);
+    border-radius:12px;padding:6px;margin-bottom:22px;overflow-x:auto;
+  }
+  .tab{
+    flex:1;display:flex;align-items:center;gap:10px;padding:12px 16px;
+    border-radius:8px;cursor:pointer;white-space:nowrap;border:none;background:transparent;
+    font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:500;color:var(--ink-soft);
+    transition:background .15s ease, color .15s ease;
+  }
+  .tab .idx{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);}
+  .tab.active{background:var(--teal-tint);color:var(--teal-deep);}
+  .tab.active .idx{color:var(--teal);}
+  .tab:hover:not(.active){background:var(--line-soft);}
+
+  section.panel{display:none;}
+  section.panel.active{display:block;animation:fade .2s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:translateY(0);}}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;margin-bottom:18px;}
+  .card h2{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0 0 4px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+  .card h2 .tag{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);font-weight:400;}
+  .card .desc{color:var(--ink-soft);font-size:13px;margin:0 0 18px;max-width:640px;line-height:1.5;}
+  .snapshot-flag{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--gold);
+    background:var(--gold-tint);padding:3px 9px;border-radius:20px;font-weight:500;
+  }
+
+  /* ---------- Secondary chip filter (rolling window) ---------- */
+  .chipset{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+  .chipset .roll-label{font-size:11.5px;color:var(--ink-faint);margin-right:2px;display:flex;align-items:center;}
+  .chip{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    border:1px solid var(--line);
+    background:var(--surface);
+    color:var(--ink-soft);
+    padding:6px 13px;
+    border-radius:20px;
+    cursor:pointer;
+    transition:all .12s ease;
+  }
+  .chip.small{padding:5px 12px;font-size:11.5px;}
+  .chip:hover{border-color:var(--teal);color:var(--teal-deep);}
+  .chip.active{background:var(--teal);border-color:var(--teal);color:#fff;}
+
+  /* ---------- Quartile ladder ---------- */
+  .ladder-row{display:flex;gap:28px;flex-wrap:wrap;align-items:stretch;}
+  .ladder{width:150px;display:flex;flex-direction:column;gap:3px;}
+  .ladder .band{position:relative;border-radius:6px;padding:9px 12px;font-size:11.5px;font-weight:500;display:flex;justify-content:space-between;align-items:center;color:var(--ink-soft);}
+  .band.q1{background:#DCEDE3;height:44px;}
+  .band.q2{background:#E7EFE7;height:38px;}
+  .band.q3{background:#F1EBE2;height:38px;}
+  .band.q4{background:#F3E2DC;height:44px;}
+  .band .qname{font-family:'IBM Plex Mono',monospace;}
+  .marker{position:absolute;right:-9px;width:18px;height:18px;border-radius:50%;background:var(--gold);border:3px solid #fff;box-shadow:0 0 0 1px var(--gold), 0 2px 4px rgba(0,0,0,.25);display:none;}
+  .band.marked .marker{display:block;}
+  .ladder-caption{font-size:11px;color:var(--ink-faint);margin-top:8px;text-align:center;}
+  .ladder-info{flex:1;min-width:260px;}
+  .stat-row{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:14px;}
+  .stat{min-width:100px;}
+  .stat .slabel{font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;}
+  .stat .sval{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;}
+  .stat .sval.up{color:var(--teal);}
+
+  /* ---------- Tables ---------- */
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th,td{padding:11px 10px;text-align:right;border-bottom:1px solid var(--line-soft);}
+  th:first-child,td:first-child{text-align:left;}
+  thead th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);font-weight:500;border-bottom:1px solid var(--line);}
+  tbody tr:hover{background:#FAFBFA;}
+  td.metric{font-weight:500;}
+  td.fund-val{font-family:'IBM Plex Mono',monospace;color:var(--teal-deep);font-weight:600;}
+  td.num-val{font-family:'IBM Plex Mono',monospace;color:var(--ink-soft);}
+  .delta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;margin-left:6px;}
+  .delta.up{color:var(--teal);}
+  .delta.down{color:var(--brick);}
+
+  .info{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--ink-faint);color:var(--ink-faint);font-size:9.5px;font-family:'IBM Plex Mono',monospace;cursor:default;position:relative;margin-left:5px;top:-1px;}
+  .info:hover .tip{display:block;}
+  .info .tip{display:none;position:absolute;bottom:120%;left:50%;transform:translateX(-50%);width:220px;background:var(--ink);color:#EAF1EE;font-family:'IBM Plex Sans',sans-serif;font-size:11.5px;line-height:1.4;padding:9px 11px;border-radius:7px;z-index:10;text-align:left;font-weight:400;}
+  .info .tip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--ink);}
+
+  .weight-cell{width:120px;}
+  .weight-bar{height:6px;border-radius:4px;background:var(--line-soft);overflow:hidden;}
+  .weight-bar span{display:block;height:100%;background:var(--gold);}
+  .weight-pct{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);margin-top:4px;text-align:left;}
+
+  .score-strip{display:flex;align-items:center;gap:16px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft);}
+  .score-strip .slabel{font-size:12px;color:var(--ink-soft);}
+  .score-pill{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px;background:var(--teal-tint);color:var(--teal-deep);padding:5px 14px;border-radius:20px;}
+
+  .metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;}
+  .metric-card{border:1px solid var(--line);border-radius:9px;padding:16px 16px 14px;background:#FCFDFC;}
+  .metric-card .mname{font-size:12px;color:var(--ink-soft);display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .metric-card .mval{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;color:var(--teal-deep);}
+  .metric-card .mbench{font-size:11px;color:var(--ink-faint);margin-top:6px;}
+
+  .holding-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:22px;}
+  @media (max-width:760px){.holding-grid{grid-template-columns:1fr;}}
+  .sector-row{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+  .sector-row .sname{width:110px;font-size:12.5px;color:var(--ink-soft);flex-shrink:0;}
+  .sector-track{flex:1;height:8px;background:var(--line-soft);border-radius:5px;overflow:hidden;}
+  .sector-track span{display:block;height:100%;background:var(--teal);border-radius:5px;}
+  .sector-pct{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);width:38px;text-align:right;}
+  .holding-list{list-style:none;margin:0;padding:0;}
+  .holding-list li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:13px;}
+  .holding-list li:last-child{border-bottom:none;}
+  .holding-list .hname{font-weight:500;}
+  .holding-list .hpct{font-family:'IBM Plex Mono',monospace;color:var(--ink-soft);}
+
+  footer{text-align:center;font-size:11.5px;color:var(--ink-faint);margin-top:30px;font-family:'IBM Plex Mono',monospace;}
+
+  @media (prefers-reduced-motion:reduce){section.panel.active{animation:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="scheme-header">
+    <div class="scheme-id">
+      <p class="eyebrow">Scheme Analysis</p>
+      <h1>SBI Small Cap Fund</h1>
+      <div class="scheme-meta">
+        <span>Small Cap · Equity</span>
+        <span class="dot"></span>
+        <span>Direct · Growth</span>
+        <span class="dot"></span>
+        <span>AUM ₹33,485 Cr</span>
+        <span class="dot"></span>
+        <span>Benchmark: Nifty Smallcap 250 TRI</span>
+      </div>
+    </div>
+    <div class="quartile-badge">
+      <div class="qlabel" id="qLabel">Quartile Rank · 3Y</div>
+      <div class="qval" id="qVal">Q1</div>
+      <div class="qsub">Top 25% of category peers</div>
+    </div>
+  </div>
+
+  <!-- MASTER PERIOD FILTER — sticky, drives every tab below -->
+  <div class="master-bar-wrap">
+    <div class="master-bar" id="masterBar">
+      <span class="as-of">As of 19 Aug 2026</span>
+      <button class="period-btn active" data-p="3Y">3Y</button>
+      <button class="period-btn" data-p="5Y">5Y</button>
+      <button class="period-btn" data-p="7Y">7Y</button>
+      <button class="period-btn" data-p="10Y">10Y</button>
+    </div>
+    <div class="master-note">Period selected here applies across <b>Returns</b>, <b>Risk Matrix</b> and <b>Risk-Adjusted Return</b>. Returns shown annualised.</div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-panel="returns"><span class="idx">01</span> Returns</button>
+    <button class="tab" data-panel="risk"><span class="idx">02</span> Risk Matrix</button>
+    <button class="tab" data-panel="riskadj"><span class="idx">03</span> Risk-Adjusted Return</button>
+    <button class="tab" data-panel="growth"><span class="idx">04</span> Growth Opportunity</button>
+  </div>
+
+  <!-- ================= 01 RETURNS ================= -->
+  <section class="panel active" id="returns">
+    <div class="card">
+      <h2>Quartile Ranking <span class="info">i<span class="tip">Where this fund sits relative to every other fund in its category, based on return over the selected period. Q1 = top quartile.</span></span> <span class="tag">master filter: <span id="tagPeriod1">3Y</span></span></h2>
+      <p class="desc">Ranks the fund's rolling return against its category peer set for the period selected above.</p>
+
+      <div class="ladder-row">
+        <div>
+          <div class="ladder" id="ladder">
+            <div class="band q1" data-q="Q1"><span class="qname">Q1</span><span>Top 25%</span><span class="marker"></span></div>
+            <div class="band q2" data-q="Q2"><span class="qname">Q2</span><span>26–50%</span><span class="marker"></span></div>
+            <div class="band q3" data-q="Q3"><span class="qname">Q3</span><span>51–75%</span><span class="marker"></span></div>
+            <div class="band q4" data-q="Q4"><span class="qname">Q4</span><span>Bottom 25%</span><span class="marker"></span></div>
+          </div>
+          <div class="ladder-caption">Peer position · <span id="ladderPeriod">3Y</span>
+            <span class="info">i<span class="tip">Peers are every fund in the same category, ranked by return for the selected period and split into four equal-sized bands. Q1 is the best-performing quarter of the pack.</span></span>
+          </div>
+        </div>
+        <div class="ladder-info">
+          <div class="stat-row">
+            <div class="stat"><div class="slabel">Fund percentile</div><div class="sval up" id="statPercentile">12th</div></div>
+            <div class="stat"><div class="slabel">Peers in category</div><div class="sval" id="statPeers">142</div></div>
+            <div class="stat"><div class="slabel">Category median return</div><div class="sval" id="statMedian">14.8%</div></div>
+          </div>
+          <p class="desc" style="margin-bottom:0;">The gold marker shows the fund's quartile band for the period selected in the master filter above. Consistently landing in Q1/Q2 across horizons signals durable outperformance rather than a single lucky cycle.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Rolling &amp; Trailing Return <span class="tag">master filter: <span id="tagPeriod2">3Y</span></span></h2>
+      <p class="desc">Rolling return smooths entry-point luck by averaging return across every possible start date within a chosen window; trailing return is the plain point-to-point figure for the master period selected above.</p>
+
+      <div class="chipset" id="rollBar">
+        <span class="roll-label">Rolling window <span class="info">i<span class="tip">The length of the window used to average rolling returns — independent of the master filter above, which sets the trailing/benchmark comparison period.</span></span></span>
+        <button class="chip small" data-r="1Y">1Y</button>
+        <button class="chip small active" data-r="3Y">3Y</button>
+        <button class="chip small" data-r="5Y">5Y</button>
+        <button class="chip small" data-r="10Y">10Y</button>
+      </div>
+
+      <table>
+        <thead><tr>
+          <th>Metric</th>
+          <th>Rolling Return <span class="info">i<span class="tip">Average return across every possible start date within the selected rolling window — smooths out the luck of picking one exact entry point.</span></span></th>
+          <th>Trailing Return <span class="info">i<span class="tip">Plain point-to-point return for the period, measured back from today's date.</span></span></th>
+          <th>Benchmark Return <span class="info">i<span class="tip">The return of Nifty Smallcap 250 TRI, the fund's assigned benchmark, over the same period.</span></span></th>
+          <th>BSE 500 <span class="info">i<span class="tip">Return of the BSE 500 index over the same period, shown as a broader market yardstick alongside the benchmark.</span></span></th>
+        </tr></thead>
+        <tbody id="returnsBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 02 RISK MATRIX ================= -->
+  <section class="panel" id="risk">
+    <div class="card">
+      <h2>Risk Matrix <span class="info">i<span class="tip">How much the fund's returns wobble, and how closely it tracks the market — measured three ways and blended into one score.</span></span> <span class="tag">master filter: <span id="tagPeriod3">3Y</span></span></h2>
+      <p class="desc">Three risk measures, pre-weighted, computed over the period selected above and rolled up into a single risk score against the benchmark and the broader market.</p>
+      <table>
+        <thead><tr><th>Metric</th><th class="weight-cell">Weight</th><th>Fund</th><th>Benchmark</th><th>BSE 500</th></tr></thead>
+        <tbody id="riskBody"></tbody>
+      </table>
+      <div class="score-strip">
+        <span class="slabel">Weighted risk score <span class="info">i<span class="tip">Std. Deviation, Beta and Capture Ratio combined using the weights above into a single 0–10 score — lower is calmer, higher is more volatile than the market.</span></span></span>
+        <span class="score-pill" id="riskScore">7.8 / 10 — Moderate</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 03 RISK-ADJUSTED RETURN ================= -->
+  <section class="panel" id="riskadj">
+    <div class="card">
+      <h2>Risk-Adjusted Return Matrix <span class="info">i<span class="tip">Return alone doesn't tell you if it was earned efficiently — these ratios divide return by the risk taken to get it.</span></span> <span class="tag">master filter: <span id="tagPeriod4">3Y</span></span></h2>
+      <p class="desc">Return alone doesn't say whether it was earned efficiently. These five measures each divide the period's return by a different flavour of risk taken to get there.</p>
+      <div class="metric-grid" id="riskAdjGrid"></div>
+    </div>
+  </section>
+
+  <!-- ================= 04 GROWTH OPPORTUNITY ================= -->
+  <section class="panel" id="growth">
+    <div class="card">
+      <h2>Possible Growth Opportunity <span class="info">i<span class="tip">How richly the fund's current holdings are priced relative to their earnings growth, versus the benchmark and the broader market.</span></span> <span class="snapshot-flag">point-in-time snapshot</span></h2>
+      <p class="desc">Valuation multiples aren't a trailing-period measure — they reflect current portfolio pricing, so this table stays fixed regardless of the master filter above.</p>
+      <table>
+        <thead><tr><th>Metric</th><th class="weight-cell">Weight</th><th>Fund</th><th>Benchmark</th><th>BSE 500</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="metric">PEG <span class="info">i<span class="tip">Price/Earnings relative to earnings growth — lower suggests cheaper growth on offer.</span></span></td>
+            <td class="weight-cell"><div class="weight-bar"><span style="width:40%"></span></div><div class="weight-pct">40%</div></td>
+            <td class="fund-val">0.96</td><td class="num-val">1.21</td><td class="num-val">1.44</td>
+          </tr>
+          <tr>
+            <td class="metric">PE <span class="info">i<span class="tip">Price to Earnings — valuation relative to current earnings.</span></span></td>
+            <td class="weight-cell"><div class="weight-bar"><span style="width:20%"></span></div><div class="weight-pct">20%</div></td>
+            <td class="fund-val">28.4x</td><td class="num-val">31.7x</td><td class="num-val">27.3x</td>
+          </tr>
+          <tr>
+            <td class="metric">PB <span class="info">i<span class="tip">Price to Book — valuation relative to net asset value on the books.</span></span></td>
+            <td class="weight-cell"><div class="weight-bar"><span style="width:20%"></span></div><div class="weight-pct">20%</div></td>
+            <td class="fund-val">4.6x</td><td class="num-val">5.2x</td><td class="num-val">4.3x</td>
+          </tr>
+          <tr>
+            <td class="metric">AUM <span class="info">i<span class="tip">Assets under management — the room left to grow before size itself becomes a drag on returns.</span></span></td>
+            <td class="weight-cell"><div class="weight-bar"><span style="width:20%"></span></div><div class="weight-pct">20%</div></td>
+            <td class="fund-val">₹33,485 Cr</td><td class="num-val">—</td><td class="num-val">—</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="score-strip">
+        <span class="slabel">Weighted growth opportunity score <span class="info">i<span class="tip">PEG, PE, PB and AUM combined using the weights above into a single 0–10 score — higher means more headroom for growth at a reasonable price.</span></span></span>
+        <span class="score-pill">8.2 / 10 — Attractive</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Current Holding <span class="snapshot-flag">point-in-time snapshot</span></h2>
+      <p class="desc">Where the fund's growth thesis is actually deployed today, by sector and by single largest positions.</p>
+      <div class="holding-grid">
+        <div>
+          <div class="sector-row"><span class="sname">Industrials</span><div class="sector-track"><span style="width:22%"></span></div><span class="sector-pct">22%</span></div>
+          <div class="sector-row"><span class="sname">Consumer Disc.</span><div class="sector-track"><span style="width:19%"></span></div><span class="sector-pct">19%</span></div>
+          <div class="sector-row"><span class="sname">Materials</span><div class="sector-track"><span style="width:16%"></span></div><span class="sector-pct">16%</span></div>
+          <div class="sector-row"><span class="sname">Financials</span><div class="sector-track"><span style="width:13%"></span></div><span class="sector-pct">13%</span></div>
+          <div class="sector-row"><span class="sname">Healthcare</span><div class="sector-track"><span style="width:11%"></span></div><span class="sector-pct">11%</span></div>
+          <div class="sector-row"><span class="sname">Others</span><div class="sector-track"><span style="width:19%"></span></div><span class="sector-pct">19%</span></div>
+        </div>
+        <ul class="holding-list">
+          <li><span class="hname">Top holding 1 <span class="info">i<span class="tip">Names illustrative — swap in live constituent data from the portfolio feed.</span></span></span><span class="hpct">5.8%</span></li>
+          <li><span class="hname">Top holding 2</span><span class="hpct">4.9%</span></li>
+          <li><span class="hname">Top holding 3</span><span class="hpct">4.2%</span></li>
+          <li><span class="hname">Top holding 4</span><span class="hpct">3.6%</span></li>
+          <li><span class="hname">Top holding 5</span><span class="hpct">3.1%</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>Prototype for illustration only · Figures are indicative, not live NAV data</footer>
+</div>
+
+<script>
+  // ---------- Tab switching ----------
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.panel).classList.add('active');
+    });
+  });
+
+  // ---------- Single source of truth, keyed by master period ----------
+  const DATA = {
+    '3Y':  { q:{q:'Q1',pct:'9th', peers:62,median:'21.6%'}, ret:['3Y Return (annualised)','29.8%','29.8%','23.4%','18.1%'],
+             risk:{sd:['19.8%','18.9%','12.9%'],beta:['0.88','1.00','1.24'],cap:['112% / 84%','100% / 100%','100% / 100%'],score:'6.4 / 10 — High'},
+             ra:{ir:['0.86','0.47'],sh:['1.02','0.79'],so:['1.48','1.09'],al:['5.1%','1.6%'],act:['6.4%','1.2%']} },
+    '5Y':  { q:{q:'Q1',pct:'5th', peers:56,median:'24.1%'}, ret:['5Y Return (annualised)','33.6%','33.6%','26.2%','16.0%'],
+             risk:{sd:['21.4%','20.3%','13.4%'],beta:['0.87','1.00','1.21'],cap:['115% / 81%','100% / 100%','100% / 100%'],score:'6.6 / 10 — High'},
+             ra:{ir:['0.94','0.51'],sh:['1.11','0.84'],so:['1.59','1.15'],al:['6.3%','1.9%'],act:['7.4%','1.4%']} },
+    '7Y':  { q:{q:'Q1',pct:'11th',peers:48,median:'19.8%'}, ret:['7Y Return (annualised)','24.9%','24.9%','19.6%','14.8%'],
+             risk:{sd:['20.6%','19.5%','13.7%'],beta:['0.88','1.00','1.19'],cap:['113% / 83%','100% / 100%','100% / 100%'],score:'6.5 / 10 — High'},
+             ra:{ir:['0.79','0.45'],sh:['0.97','0.75'],so:['1.39','1.03'],al:['4.6%','1.5%'],act:['5.3%','1.1%']} },
+    '10Y': { q:{q:'Q1',pct:'14th',peers:39,median:'17.2%'}, ret:['10Y Return (annualised)','21.7%','21.7%','16.9%','13.6%'],
+             risk:{sd:['19.9%','18.8%','14.2%'],beta:['0.89','1.00','1.16'],cap:['111% / 85%','100% / 100%','100% / 100%'],score:'6.5 / 10 — High'},
+             ra:{ir:['0.71','0.41'],sh:['0.90','0.71'],so:['1.28','0.97'],al:['4.1%','1.3%'],act:['4.8%','1.0%']} },
+  };
+
+  // Rolling return has its own window, independent of the master period above
+  const ROLLING = {
+    '1Y':  '26.4%',
+    '3Y':  '28.1%',
+    '5Y':  '30.7%',
+    '10Y': '20.9%',
+  };
+  let currentRoll = '3Y';
+
+  const RA_META = [
+    ['ir','Information Ratio','Excess return over the benchmark per unit of tracking risk. Higher means the outperformance is consistent, not a one-off.'],
+    ['sh','Sharpe Ratio','Return earned per unit of total risk taken, measured using standard deviation.'],
+    ['so','Sortino Ratio','Like Sharpe, but only penalises downside volatility — it does not punish the fund for upside swings.'],
+    ['al',"Jenson's Alpha","The extra return delivered above what the fund's beta-adjusted market exposure alone would predict."],
+    ['act','Active Return','The plain gap between the fund return and the benchmark return over the same period.'],
+  ];
+
+  let currentPeriod = '3Y';
+
+  function renderReturnsRow(){
+    const d = DATA[currentPeriod];
+    const r = d.ret;
+    document.getElementById('returnsBody').innerHTML = `
+      <tr>
+        <td class="metric">${r[0]}</td>
+        <td class="fund-val">${ROLLING[currentRoll]} <span class="delta up">▲ ${currentRoll} window</span></td>
+        <td class="num-val">${r[1]}</td>
+        <td class="num-val">${r[2]}</td>
+        <td class="num-val">${r[3]}</td>
+      </tr>`;
+  }
+
+  function render(period){
+    currentPeriod = period;
+    const d = DATA[period];
+
+    // header + tags
+    document.getElementById('qLabel').textContent = 'Quartile Rank · ' + period;
+    document.getElementById('qVal').textContent = d.q.q;
+    ['tagPeriod1','tagPeriod2','tagPeriod3','tagPeriod4'].forEach(id => document.getElementById(id).textContent = period);
+
+    // quartile ladder
+    document.getElementById('ladderPeriod').textContent = period;
+    document.getElementById('statPercentile').textContent = d.q.pct;
+    document.getElementById('statPeers').textContent = d.q.peers;
+    document.getElementById('statMedian').textContent = d.q.median;
+    document.querySelectorAll('.ladder .band').forEach(b => b.classList.toggle('marked', b.dataset.q === d.q.q));
+
+    // returns table
+    renderReturnsRow();
+
+    // risk matrix
+    const rk = d.risk;
+    document.getElementById('riskBody').innerHTML = `
+      <tr>
+        <td class="metric">Std. Deviation <span class="info">i<span class="tip">Measures how much the fund's returns swing away from its own average — a bumpier ride shows a higher number.</span></span></td>
+        <td class="weight-cell"><div class="weight-bar"><span style="width:40%"></span></div><div class="weight-pct">40%</div></td>
+        <td class="fund-val">${rk.sd[0]}</td><td class="num-val">${rk.sd[1]}</td><td class="num-val">${rk.sd[2]}</td>
+      </tr>
+      <tr>
+        <td class="metric">Beta <span class="info">i<span class="tip">The fund's sensitivity to market moves. 1.0 moves with the market; below 1 is calmer, above 1 amplifies swings.</span></span></td>
+        <td class="weight-cell"><div class="weight-bar"><span style="width:40%"></span></div><div class="weight-pct">40%</div></td>
+        <td class="fund-val">${rk.beta[0]}</td><td class="num-val">${rk.beta[1]}</td><td class="num-val">${rk.beta[2]}</td>
+      </tr>
+      <tr>
+        <td class="metric">Capture Ratio <span class="info">i<span class="tip">Upside/downside capture — how much of the market's up moves the fund captures versus how much of the down moves it avoids.</span></span></td>
+        <td class="weight-cell"><div class="weight-bar"><span style="width:20%"></span></div><div class="weight-pct">20%</div></td>
+        <td class="fund-val">${rk.cap[0]}</td><td class="num-val">${rk.cap[1]}</td><td class="num-val">${rk.cap[2]}</td>
+      </tr>`;
+    document.getElementById('riskScore').textContent = rk.score;
+
+    // risk-adjusted grid
+    document.getElementById('riskAdjGrid').innerHTML = RA_META.map(([key, name, tip]) => `
+      <div class="metric-card">
+        <div class="mname">${name} <span class="info">i<span class="tip">${tip}</span></span></div>
+        <div class="mval">${d.ra[key][0]}</div>
+        <div class="mbench">Category avg: ${d.ra[key][1]}</div>
+      </div>`).join('');
+  }
+
+  document.getElementById('masterBar').addEventListener('click', (e) => {
+    const btn = e.target.closest('.period-btn');
+    if (!btn) return;
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render(btn.dataset.p);
+  });
+
+  document.getElementById('rollBar').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    document.querySelectorAll('#rollBar .chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentRoll = chip.dataset.r;
+    renderReturnsRow();
+  });
+
+  render('3Y');
+</script>
+</body>
+</html>
